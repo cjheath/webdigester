@@ -1,0 +1,111 @@
+<html>
+<head>
+  <script src="jquery.min.js"></script>
+  <script src="sha256.js"></script>
+  <!--script src="hmac-sha256.js"></script-->
+  <!--script src="enc-base64-min.js"></script-->
+  <script src="md5.js"></script>
+  <script>
+    $(document).ready(function() {
+      // Disable drag and drop except onto things of class dropzone:
+      var isDropZone = function(e) { return $(e.target).hasClass('dropzone'); };
+      $(document).on({ drop: isDropZone, dragover: isDropZone });
+
+      function arrayBufferToWordArray(ab) {
+	var i8a = new Uint8Array(ab);
+	var a = [];
+	for (var i = 0; i < i8a.length; i += 4) {
+	  a.push(i8a[i] << 24 | i8a[i + 1] << 16 | i8a[i + 2] << 8 | i8a[i + 3]);
+	}
+	return CryptoJS.lib.WordArray.create(a, i8a.length);
+      }
+
+      function checksumFiles(files) {
+	console.log('Digesting '+files.length+' files');
+	var html = "<table id='hashes'><tr><th>Filename</th><th>MD5</th><th>SHA256</th></tr>\n";
+	$("#display").html(html+"</table>");
+
+	function checksumResult(reader) {
+	  var fileName = reader.file.name;
+	  console.log('loadend on '+fileName+' with error '+reader.error);
+	  if (reader.error) {
+	    html = html +
+	      "<tr><td class='filename'>"+fileName+"</td><td colspan='2' class='error'>"+reader.error+"</td></tr>";
+	  } else {
+	    var arrayBuffer = reader.result;
+	    var array = arrayBufferToWordArray(arrayBuffer);
+	    // var sha256HMac = CryptoJS.HmacSHA256(array, "passphrase");
+	    // var sha256HMacInBase64 = CryptoJS.enc.Base64.stringify(sha256HMac);
+	    // Here's how to process a file in sections:
+	    // var hasher = CryptoJS.algo.SHA256.create();
+	    // hasher.update(array);
+	    // var sha256 = hasher.finalize();
+	    var sha256 = CryptoJS.SHA256(array);
+	    var md5 = CryptoJS.MD5(array);
+	    html = html +
+	      "<tr><td class='filename'>"+fileName+"</td><td class='value'>"+md5+"</td><td class='value'>"+sha256+"</td></tr>";
+	  }
+	  $("#display").html(html+"</table>");
+	}
+
+	// Loop through the FileList and checksum each one
+	for (var i = 0, f; f = files[i]; i++) {
+	  var reader = new FileReader();
+	  reader.file = f;  // Attach the file to the reader
+
+	  reader.onloadend = function(e) {
+	    e.preventDefault();
+	    checksumResult(e.target);
+	  };
+
+	  // Read in the image file as a data URL, calling onloadend when done or failed
+	  reader.readAsArrayBuffer(f);
+	}
+      }
+
+      var selection = $('#selection');
+      function handleFileSelect(e) {
+	var files = e.target.files; // FileList object
+	checksumFiles(files);
+	selection.removeClass('droppable');
+      }
+
+      /* These events are called on draggables:
+      draggable.on({
+	dragstart: function() { return true; },
+	drag: function() { return true; },
+	dragend: function() { return true; },
+      });
+      */
+
+      selection.on({
+	dragenter: function() { selection.addClass('droppable'); return true; },
+	dragover: function() { return false; },
+	dragleave: function() { selection.removeClass('droppable'); return true; },
+	drop: function(e) { console.log('drop'); return true; },
+	change: function(e) { console.log('change'); return handleFileSelect(e); }
+      });
+    });
+  </script>
+  <style>
+    #selection { border: 4px dashed #ccc; background-color: #EEE; width: 300px; height: 100px; }
+    #selection.droppable { background-color: #DFD; }
+    #hashes th { background-color: #DDD; }
+    #hashes .filename { background-color: #CEC; }
+    #hashes .error { background-color: #ECC; }
+    #hashes .value { background-color: #CCE; }
+  </style>
+</head>
+
+<body>
+  <h3>Compute MD5 and SHA256 digests</h3>
+  <p>
+  Select or drop files to digest<br/>
+  <input type="file" name="selection" id="selection" multiple="multiple" class="dropzone"/>
+  </p>
+
+  <p id="display">
+  </p>
+
+</body>
+</html>
